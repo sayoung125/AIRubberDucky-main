@@ -35,6 +35,12 @@ class RubberDuckGUI:
                                 bg='black', fg='#00ff00')
         self.status_label.pack(pady=10)
 
+        self.status_label = tk.Label(self.top_frame, 
+                                     text="Say Something!", 
+                                     font=('Courier', 30, 'bold'),
+                                     bg='black', fg='yellow')
+        self.status_label.pack(pady=10)
+
         # User text display with matrix style
         self.user_text = tk.Text(self.bottom_frame, height=2, 
                                 font=('Courier', 24),

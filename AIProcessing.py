@@ -36,13 +36,14 @@ class RubberDuckMic:
         print("Listening...")
         try:
             rec = KaldiRecognizer(self.model, self.samplerate)
-            with sd.RawInputStream(samplerate=self.samplerate, 
-                                 blocksize=8000,
-                                 device=None,
-                                 dtype='int16',
-                                 channels=1,
-                                 callback=self.callback):
-                
+            with sd.RawInputStream(
+                samplerate=self.samplerate, 
+                blocksize=8000,
+                device=None,
+                dtype='int16',
+                channels=1,
+                callback=self.callback
+            ):
                 if gui:
                     gui.root.after(0, gui.update_status, "Say something!")
                 print("Say something!")
@@ -52,6 +53,11 @@ class RubberDuckMic:
                         result = json.loads(rec.Result())
                         text = result.get("text", "").strip()
                         if text:
+                            # Capitalize first word
+                            text = text[0].upper() + text[1:]
+                            # Add question mark
+                            if not text.endswith("?"):
+                                text += "?"
                             if gui:
                                 gui.root.after(0, gui.update_status, "Processing...")
                             print(f"You said: {text}")
@@ -95,22 +101,17 @@ class RubberDuckTTS:
             # Create gTTS object
             tts = gTTS(text=text, lang=self.language, tld=self.tld, slow=False)
             
-            # Save to a temporary file and play it
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as fp:
-                temp_filename = fp.name
-                
-            tts.save(temp_filename)
-            
-            # Play the audio file
-            pygame.mixer.music.load(temp_filename)
+            mp3_data = io.BytesIO()
+            tts.write_to_fp(mp3_data)
+            mp3_data.seek(0)
+
+            # Load from memory instead of a file
+            pygame.mixer.music.load(mp3_data, "mp3")
             pygame.mixer.music.play()
-            
-            # Wait for the audio to finish playing
+
+            # Wait for playback to finish
             while pygame.mixer.music.get_busy():
                 pygame.time.Clock().tick(10)
-                
-            # Clean up the temporary file
-            os.unlink(temp_filename)
             
         except Exception as e:
             print(f"TTS Thread Error: {e}")
@@ -188,14 +189,13 @@ def main():
                 user_input = mic.listen(gui)
 
                 if user_input:
-                    # Update GUI with user's text
                     root.after(0, gui.update_user_text, user_input)
-                
-                    # Process and respond (passing GUI reference)
                     root.after(0, gui.update_status, "Thinking...")
+
                     response = duck_ai.process_and_respond(user_input, gui)
                 
-                    # Update GUI with duck's response
+                    # Once AI response is generated, switch back to "Say Something"
+                    root.after(0, gui.update_status, "Say Something!")
                     root.after(0, gui.update_response_text, response)
                     
                 if user_input and "exit" in user_input.lower():

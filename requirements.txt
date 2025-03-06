@@ -1,0 +1,7 @@
+openai
+gtts
+pygame
+sounddevice
+vosk
+python-dotenv
+Pillow
