@@ -31,38 +31,64 @@ class RubberDuckMic:
         self.q.put(bytes(indata))
 
     def listen(self, gui=None):
+        trigger_word = "donald"
+        
         if gui:
-            gui.root.after(0, gui.update_status, "Listening...")
-        print("Listening...")
+            gui.root.after(0, gui.update_status, f"Say the trigger word: '{trigger_word.capitalize()}'")
+        print(f"Say the trigger word: '{trigger_word.capitalize()}'")
+
         try:
             rec = KaldiRecognizer(self.model, self.samplerate)
             with sd.RawInputStream(
-                samplerate=self.samplerate, 
+                samplerate=self.samplerate,
                 blocksize=8000,
                 device=None,
                 dtype='int16',
                 channels=1,
                 callback=self.callback
             ):
-                if gui:
-                    gui.root.after(0, gui.update_status, "Say something!")
-                print("Say something!")
                 while True:
                     data = self.q.get()
                     if rec.AcceptWaveform(data):
                         result = json.loads(rec.Result())
-                        text = result.get("text", "").strip()
-                        if text:
-                            # Capitalize first word
-                            text = text[0].upper() + text[1:]
-                            # Add question mark
-                            if not text.endswith("?"):
-                                text += "?"
+                        text = result.get("text", "").strip().lower()
+
+                        # Only proceed when the trigger word is spoken
+                        if trigger_word in text:
+                            if gui:
+                                gui.root.after(0, gui.update_status, "Ask your question now...")
+                                # Start pulsing border
+                                gui.root.after(0, gui.enable_listening_border)
+                            print("Trigger word detected. Now listening for question.")
+                            break
+
+            # Second raw input stream for the actual question
+            rec = KaldiRecognizer(self.model, self.samplerate)
+            with sd.RawInputStream(
+                samplerate=self.samplerate,
+                blocksize=8000,
+                device=None,
+                dtype='int16',
+                channels=1,
+                callback=self.callback
+            ):
+                while True:
+                    data = self.q.get()
+                    if rec.AcceptWaveform(data):
+                        result = json.loads(rec.Result())
+                        question_text = result.get("text", "").strip()
+                        if question_text:
+                            # Capitalize first letter
+                            question_text = question_text[0].upper() + question_text[1:]
+                            # Add question mark if not present
+                            if not question_text.endswith("?"):
+                                question_text += "?"
                             if gui:
                                 gui.root.after(0, gui.update_status, "Processing...")
-                            print(f"You said: {text}")
-                            return text
-                    
+                                gui.root.after(0, gui.disable_listening_border)
+                            print(f"You said: {question_text}")
+                            return question_text
+
         except Exception as e:
             if gui:
                 gui.root.after(0, gui.update_status, f"Error: {e}")
@@ -183,19 +209,19 @@ def main():
         while True:
             try:
                 # Reset status to indicate ready
-                root.after(0, gui.update_status, "Ready")
+                root.after(0, gui.update_status, "")
 
                 # Listen for input - pass GUI reference
                 user_input = mic.listen(gui)
 
                 if user_input:
                     root.after(0, gui.update_user_text, user_input)
-                    root.after(0, gui.update_status, "Thinking...")
+                    root.after(0, gui.update_status, "")
 
                     response = duck_ai.process_and_respond(user_input, gui)
                 
                     # Once AI response is generated, switch back to "Say Something"
-                    root.after(0, gui.update_status, "Say Something!")
+                    root.after(0, gui.update_status, "")
                     root.after(0, gui.update_response_text, response)
                     
                 if user_input and "exit" in user_input.lower():

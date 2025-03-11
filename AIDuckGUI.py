@@ -7,6 +7,7 @@ class RubberDuckGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Rubber Duck Debugger")
+        self.border_pulsing = False
         self.root.attributes('-fullscreen', True)  # Fullscreen on Raspberry Pi
         self.typing_speed = 50  # milliseconds per character
         self.typing_job = None  # Store the typing animation job
@@ -24,19 +25,21 @@ class RubberDuckGUI:
         
         # Load and display the matrix duck gif
         self.load_gif()
-        self.duck_label = tk.Label(self.top_frame, bg='black')
-        self.duck_label.pack(pady=20)
+        self.gif_frame = tk.Frame(self.top_frame, bg='black', bd=5)
+        self.gif_frame.pack(pady=20)
+        self.duck_label = tk.Label(self.gif_frame, bg='black')
+        self.duck_label.pack()
         self.animate_gif()
         
         # Status label with matrix style
         self.status_label = tk.Label(self.top_frame, 
-                                text="Ready",
+                                #text="Ready",
                                 font=('Courier', 18),
                                 bg='black', fg='#00ff00')
         self.status_label.pack(pady=10)
 
         self.status_label = tk.Label(self.top_frame, 
-                                     text="Say Something!", 
+                                     #text="Say Something!", 
                                      font=('Courier', 30, 'bold'),
                                      bg='black', fg='yellow')
         self.status_label.pack(pady=10)
@@ -49,7 +52,7 @@ class RubberDuckGUI:
         self.user_text.pack(fill='both', expand=True, padx=20, pady=10)
         
         # Duck response display with matrix style
-        self.response_text = tk.Text(self.bottom_frame, height=4,
+        self.response_text = tk.Text(self.bottom_frame, height=10,
                                    font=('Courier', 28, 'bold'),
                                    bg='black', fg='#00ff00',
                                    insertbackground='#00ff00')
@@ -72,6 +75,22 @@ class RubberDuckGUI:
             self.duck_label.configure(image=self.frames[self.current_frame])
         self.root.after(100, self.animate_gif)  # Update every 100ms
         
+    def enable_listening_border(self):
+        self.border_pulsing = True
+        self._pulse_border(0)
+
+    def _pulse_border(self, step):
+        if not self.border_pulsing:
+            return
+        brightness = 255 - (step % 20) * 12
+        color = f'#{brightness:02x}{brightness:02x}00'  # Green with varying brightness
+        self.gif_frame.configure(bg=color)
+        self.root.after(100, self._pulse_border, step + 1)
+
+    def disable_listening_border(self):
+        self.border_pulsing = False
+        self.gif_frame.configure(bg='black')
+
     def update_status(self, status_text):
         self.status_label.config(text=status_text)
         self.root.update_idletasks()  # Force GUI update
