@@ -3,7 +3,6 @@ from openai import OpenAI, OpenAIError
 from gtts import gTTS
 import pygame
 import io
-import tempfile
 import os
 import sounddevice as sd
 from vosk import Model, KaldiRecognizer
@@ -23,7 +22,6 @@ class RubberDuckMic:
         self.device_info = sd.query_devices(None, 'input')
         self.samplerate = int(self.device_info['default_samplerate'])
         self.q = queue.Queue()
-        self.max_retries = 3
 
     def callback(self, indata, frames, time, status):
         if status:
@@ -34,8 +32,10 @@ class RubberDuckMic:
         trigger_word = "donald"
         
         if gui:
-            gui.root.after(0, gui.update_status, f"Say the trigger word: '{trigger_word.capitalize()}'")
-        print(f"Say the trigger word: '{trigger_word.capitalize()}'")
+        # Format exactly as two lines with explicit placement
+            message = f'Trigger word "{trigger_word.capitalize()}"'
+            gui.root.after(0, gui.update_status, message)
+        print(f'Say the trigger word "{trigger_word.capitalize()}" to activate the AI Matrix Duck Debugging Assistant')
 
         try:
             rec = KaldiRecognizer(self.model, self.samplerate)
@@ -103,24 +103,35 @@ class RubberDuckTTS:
         self.language = 'en'
         self.tld = 'com'  # Top Level Domain (accent)
         # Approximate words per minute for estimation
-        self.wpm = 150
+        self.wpm = 200
+        # Add speech status tracking
+        self.speaking = False
+        self.speech_event = threading.Event()
         
     def estimate_speech_duration(self, text):
-        # Google TTS reads at approximately 150 words per minute
+        # Google TTS reads at approximately 200 words per minute
         word_count = len(text.split())
         # Calculate estimated duration in milliseconds
         estimated_duration = (word_count / self.wpm) * 60 * 1000
         # Add a buffer for pauses, punctuation, etc.
-        return estimated_duration * 1.2  # 20% buffer
+        return estimated_duration * 1.1  # 10% buffer
 
     def speak(self, text):
         try:
+            # Set speaking flag
+            self.speaking = True
+            self.speech_event.clear()
+            
             # Start speaking in a separate thread
             thread = threading.Thread(target=self._speak_thread, args=(text,))
             thread.daemon = True
             thread.start()
+            return self.speech_event  # Return the event for waiting
         except Exception as e:
             print(f"TTS Error: {e}")
+            self.speaking = False
+            self.speech_event.set()
+            return self.speech_event
             
     def _speak_thread(self, text):
         try:
@@ -138,20 +149,27 @@ class RubberDuckTTS:
             # Wait for playback to finish
             while pygame.mixer.music.get_busy():
                 pygame.time.Clock().tick(10)
+                
+            # Signal that speaking is done
+            self.speaking = False
+            self.speech_event.set()
             
         except Exception as e:
             print(f"TTS Thread Error: {e}")
+            self.speaking = False
+            self.speech_event.set()
 
 class RubberDuckAI:
     def __init__(self, api_key):
         self.client = OpenAI(api_key=api_key)
         self.tts = RubberDuckTTS()  # Add TTS instance
+        self.models = ["gpt-4o-mini", "gpt-4o"]
         self.system_prompt = """You are a sarcastic rubber duck debugging assistant. Your responses should be:
         - Technical and helpful for debugging questions
         - Sarcastic for complaints
         - Inspirational for demoralized developers
         Keep responses VERY brief (max 3-4 sentences) and entertaining."""
-        self.max_words = 50  # Adjust this number as needed
+        self.max_words = 100  # Adjust this number as needed
         
     def truncate_response(self, text):
         words = text.split()
@@ -167,11 +185,14 @@ class RubberDuckAI:
 
         # Calculate appropriate typing speed if GUI is provided
         if gui:
+            # Update status to "Processing..."
+            gui.root.after(0, gui.update_status, "Processing...")
+        
             # Estimate speech duration
             duration = self.tts.estimate_speech_duration(ai_response)
             # Calculate characters per millisecond to match duration
             char_count = len(ai_response) + len("AI Rubber Duck: ")
-            typing_speed = max(10, int(duration / char_count * 1.25))  # Minimum 10ms per char, increased by 5%
+            typing_speed = max(5, int(duration / char_count * 1.1))
             # Set typing speed in GUI
             gui.typing_speed = typing_speed
 
@@ -180,10 +201,9 @@ class RubberDuckAI:
         return ai_response
     
     def process_input(self, user_message):
-        o1_models = ["gpt-4o-mini", "gpt-4o"]
         try:
             response = self.client.chat.completions.create(
-                model=o1_models[0],
+                model=self.models[0],
                 messages=[
                     {"role": "system", "content": self.system_prompt},
                     {"role": "user", "content": user_message}
@@ -216,14 +236,17 @@ def main():
 
                 if user_input:
                     root.after(0, gui.update_user_text, user_input)
-                    root.after(0, gui.update_status, "")
+                    root.after(0, gui.update_status, "Processing...")
 
                     response = duck_ai.process_and_respond(user_input, gui)
                 
-                    # Once AI response is generated, switch back to "Say Something"
-                    root.after(0, gui.update_status, "")
                     root.after(0, gui.update_response_text, response)
                     
+                    # Wait for speech to complete before listening again
+                    duck_ai.tts.speech_event.wait()
+
+                    root.after(0, gui.update_status, "")
+
                 if user_input and "exit" in user_input.lower():
                     root.quit()
                     break

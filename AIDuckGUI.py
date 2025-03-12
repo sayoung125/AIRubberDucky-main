@@ -33,16 +33,11 @@ class RubberDuckGUI:
         
         # Status label with matrix style
         self.status_label = tk.Label(self.top_frame, 
-                                #text="Ready",
-                                font=('Courier', 18),
-                                bg='black', fg='#00ff00')
-        self.status_label.pack(pady=10)
-
-        self.status_label = tk.Label(self.top_frame, 
-                                     #text="Say Something!", 
-                                     font=('Courier', 30, 'bold'),
-                                     bg='black', fg='yellow')
-        self.status_label.pack(pady=10)
+                           font=('Courier', 30, 'bold'),
+                           bg='black', fg='#0614cf',
+                           wraplength=800,  # Limit width to 800 pixels
+                           justify=tk.CENTER)  # Center-align text
+        self.status_label.pack(pady=10, padx=40)
 
         # User text display with matrix style
         self.user_text = tk.Text(self.bottom_frame, height=2, 
@@ -51,23 +46,44 @@ class RubberDuckGUI:
                                 insertbackground='#00ff00')
         self.user_text.pack(fill='both', expand=True, padx=20, pady=10)
         
-        # Duck response display with matrix style
-        self.response_text = tk.Text(self.bottom_frame, height=10,
-                                   font=('Courier', 28, 'bold'),
-                                   bg='black', fg='#00ff00',
-                                   insertbackground='#00ff00')
-        self.response_text.pack(fill='both', expand=True, padx=20, pady=10)
+         # Create a frame to hold the text and scrollbar
+        response_frame = ttk.Frame(self.bottom_frame, style='Matrix.TFrame')
+        response_frame.pack(fill='both', expand=True, padx=20, pady=10)
+    
+        # Add a scrollbar
+        response_scrollbar = ttk.Scrollbar(response_frame)
+        response_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+    
+        # Duck response display with matrix style and scrollbar
+        self.response_text = tk.Text(response_frame, height=10,
+                                font=('Courier', 28, 'bold'),
+                                bg='black', fg='#00ff00',
+                                insertbackground='#00ff00',
+                                yscrollcommand=response_scrollbar.set)
+        self.response_text.pack(side=tk.LEFT, fill='both', expand=True)
+    
+        # Configure the scrollbar to work with the text widget
+        response_scrollbar.config(command=self.response_text.yview)
         
     def load_gif(self):
-        self.gif = Image.open("assets/duck/matrix_duck.gif")
-        self.frames = []
         try:
-            while True:
-                self.frames.append(ImageTk.PhotoImage(self.gif.copy()))
-                self.gif.seek(len(self.frames))
-        except EOFError:
-            pass
-        self.current_frame = 0
+            self.gif = Image.open("assets/duck/matrix_duck.gif")
+            self.frames = []
+            try:
+                while True:
+                    self.frames.append(ImageTk.PhotoImage(self.gif.copy()))
+                    self.gif.seek(len(self.frames))
+            except EOFError:
+                # This is expected - it means we've reached the end of the GIF
+                pass
+        
+            if not self.frames:
+                print("Warning: Could not load frames from GIF file.")
+            
+            self.current_frame = 0
+        except FileNotFoundError:
+            print("Warning: Duck animation file not found. Using fallback.")
+            self.frames = []  # Initialize with empty list to avoid errors later
         
     def animate_gif(self):
         if len(self.frames) > 1:
@@ -92,6 +108,7 @@ class RubberDuckGUI:
         self.gif_frame.configure(bg='black')
 
     def update_status(self, status_text):
+        status_text = status_text.replace("  ", " ")
         self.status_label.config(text=status_text)
         self.root.update_idletasks()  # Force GUI update
 
@@ -102,7 +119,14 @@ class RubberDuckGUI:
     def update_response_text(self, text):
         self.response_text.delete(1.0, tk.END)
         self.type_text("AI Rubber Duck: " + text)
+        # Ensure the response is fully visible when it's done typing
+        self.root.after(self.typing_speed * len(text) + 500, self.ensure_visible_text)
     
+    def ensure_visible_text(self):
+        """Make sure all text is visible by adjusting widget if needed"""
+        self.response_text.update_idletasks()  # Process pending display updates
+        self.response_text.see(tk.END)  # Scroll to the end
+
     def type_text(self, text, index=0):
         if self.typing_job:
             self.root.after_cancel(self.typing_job)
@@ -137,8 +161,14 @@ class RubberDuckGUI:
                     self.response_text.insert(tk.END, ' ')
                     index += 1
             
+             # Always scroll to show the latest text
+            self.response_text.see(tk.END)
+        
             # Schedule next word
             self.typing_job = self.root.after(
                 self.typing_speed * len(current_word), # Adjust timing based on word length
                 lambda: self.type_text(text, index)
             )
+        else:
+            # When typing is complete, ensure everything is visible
+            self.response_text.see(tk.END)
