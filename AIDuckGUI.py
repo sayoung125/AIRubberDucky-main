@@ -2,14 +2,15 @@ import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
 import threading
+from settings import Settings
 
 class RubberDuckGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Rubber Duck Debugger")
         self.border_pulsing = False
-        self.root.attributes('-fullscreen', True)  # Fullscreen on Raspberry Pi
-        self.typing_speed = 50  # milliseconds per character
+        self.root.attributes('-fullscreen', Settings.FULLSCREEN_MODE)  # Fullscreen mode from settings
+        self.typing_speed = Settings.TYPING_SPEED  # Typing speed from settings
         self.typing_job = None  # Store the typing animation job
         
         # Configure dark theme colors
@@ -33,7 +34,7 @@ class RubberDuckGUI:
         
         # Status label with matrix style
         self.status_label = tk.Label(self.top_frame, 
-                           font=('Courier', 30, 'bold'),
+                           font=Settings.STATUS_FONT,  # Font from settings
                            bg='black', fg='#0614cf',
                            wraplength=800,  # Limit width to 800 pixels
                            justify=tk.CENTER)  # Center-align text
@@ -41,7 +42,7 @@ class RubberDuckGUI:
 
         # User text display with matrix style
         self.user_text = tk.Text(self.bottom_frame, height=2, 
-                                font=('Courier', 24),
+                                font=Settings.USER_TEXT_FONT,  # Font from settings
                                 bg='black', fg='#00ff00',
                                 insertbackground='#00ff00')
         self.user_text.pack(fill='both', expand=True, padx=20, pady=10)
@@ -56,7 +57,7 @@ class RubberDuckGUI:
     
         # Duck response display with matrix style and scrollbar
         self.response_text = tk.Text(response_frame, height=10,
-                                font=('Courier', 28, 'bold'),
+                                font=Settings.RESPONSE_TEXT_FONT,  # Font from settings
                                 bg='black', fg='#00ff00',
                                 insertbackground='#00ff00',
                                 yscrollcommand=response_scrollbar.set)

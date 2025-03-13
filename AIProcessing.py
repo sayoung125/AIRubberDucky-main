@@ -11,6 +11,7 @@ import queue
 import tkinter as tk
 from AIDuckGUI import RubberDuckGUI
 from dotenv import load_dotenv
+from settings import Settings
 
 # Load environment variables at the top of the file
 load_dotenv()
@@ -29,7 +30,7 @@ class RubberDuckMic:
         self.q.put(bytes(indata))
 
     def listen(self, gui=None):
-        trigger_word = "donald"
+        trigger_word = Settings.TRIGGER_WORD
         
         if gui:
         # Format exactly as two lines with explicit placement
@@ -100,21 +101,24 @@ class RubberDuckTTS:
         # Initialize pygame mixer for audio playback
         pygame.mixer.init()
         # Default voice settings
-        self.language = 'en'
-        self.tld = 'com'  # Top Level Domain (accent)
+        self.language = Settings.TTS_LANGUAGE
+        self.tld = Settings.TTS_TLD  # Top Level Domain (accent)
         # Approximate words per minute for estimation
         self.wpm = 200
         # Add speech status tracking
         self.speaking = False
         self.speech_event = threading.Event()
         
+        # Load speech speed factor from settings
+        self.speech_speed_factor = Settings.SPEECH_SPEED_FACTOR
+
     def estimate_speech_duration(self, text):
         # Google TTS reads at approximately 200 words per minute
         word_count = len(text.split())
         # Calculate estimated duration in milliseconds
         estimated_duration = (word_count / self.wpm) * 60 * 1000
         # Add a buffer for pauses, punctuation, etc.
-        return estimated_duration * 1.1  # 10% buffer
+        return estimated_duration * self.speech_speed_factor  # Use the speech speed factor
 
     def speak(self, text):
         try:
@@ -163,13 +167,13 @@ class RubberDuckAI:
     def __init__(self, api_key):
         self.client = OpenAI(api_key=api_key)
         self.tts = RubberDuckTTS()  # Add TTS instance
-        self.models = ["gpt-4o-mini", "gpt-4o"]
+        self.models = Settings.OPENAI_MODELS
         self.system_prompt = """You are a sarcastic rubber duck debugging assistant. Your responses should be:
         - Technical and helpful for debugging questions
         - Sarcastic for complaints
         - Inspirational for demoralized developers
         Keep responses VERY brief (max 3-4 sentences) and entertaining."""
-        self.max_words = 100  # Adjust this number as needed
+        self.max_words = Settings.MAX_WORDS
         
     def truncate_response(self, text):
         words = text.split()
